@@ -9,11 +9,18 @@ import { z } from "zod";
 import { docs_v1, drive_v3 } from "googleapis";
 import { OAuth2Client } from "google-auth-library";
 
-// Set up OAuth2.0 scopes - we need full access to Docs and Drive
+// commented out write-enabled scopes
+// // Set up OAuth2.0 scopes - we need full access to Docs and Drive
+// const SCOPES = [
+//   "https://www.googleapis.com/auth/documents",
+//   "https://www.googleapis.com/auth/drive",
+//   "https://www.googleapis.com/auth/drive.readonly" // Add read-only scope as a fallback
+// ];
+
+// Set up OAuth2.0 scopes - read-only access for listing and reading documents
 const SCOPES = [
-  "https://www.googleapis.com/auth/documents",
-  "https://www.googleapis.com/auth/drive",
-  "https://www.googleapis.com/auth/drive.readonly" // Add read-only scope as a fallback
+  "https://www.googleapis.com/auth/documents.readonly",  // Read-only access to Google Docs
+  "https://www.googleapis.com/auth/drive.readonly"       // Read-only access to list/search Drive files
 ];
 
 // Resolve paths relative to the project root
@@ -213,187 +220,187 @@ server.resource(
 
 // TOOLS
 
-// Tool to create a new document
-server.tool(
-  "create-doc",
-  {
-    title: z.string().describe("The title of the new document"),
-    content: z.string().optional().describe("Optional initial content for the document"),
-  },
-  async ({ title, content = "" }) => {
-    try {
-      // Create a new document
-      const doc = await docsClient.documents.create({
-        requestBody: {
-          title: title,
-        },
-      });
+// // Tool to create a new document
+// server.tool(
+//   "create-doc",
+//   {
+//     title: z.string().describe("The title of the new document"),
+//     content: z.string().optional().describe("Optional initial content for the document"),
+//   },
+//   async ({ title, content = "" }) => {
+//     try {
+//       // Create a new document
+//       const doc = await docsClient.documents.create({
+//         requestBody: {
+//           title: title,
+//         },
+//       });
 
-      const documentId = doc.data.documentId;
+//       const documentId = doc.data.documentId;
 
-      // If content was provided, add it to the document
-      if (content) {
-        await docsClient.documents.batchUpdate({
-          documentId,
-          requestBody: {
-            requests: [
-              {
-                insertText: {
-                  location: {
-                    index: 1,
-                  },
-                  text: content,
-                },
-              },
-            ],
-          },
-        });
-      }
+//       // If content was provided, add it to the document
+//       if (content) {
+//         await docsClient.documents.batchUpdate({
+//           documentId,
+//           requestBody: {
+//             requests: [
+//               {
+//                 insertText: {
+//                   location: {
+//                     index: 1,
+//                   },
+//                   text: content,
+//                 },
+//               },
+//             ],
+//           },
+//         });
+//       }
 
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Document created successfully!\nTitle: ${title}\nDocument ID: ${documentId}\nYou can now reference this document using: googledocs://${documentId}`,
-          },
-        ],
-      };
-    } catch (error) {
-      console.error("Error creating document:", error);
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error creating document: ${error}`,
-          },
-        ],
-        isError: true,
-      };
-    }
-  }
-);
+//       return {
+//         content: [
+//           {
+//             type: "text",
+//             text: `Document created successfully!\nTitle: ${title}\nDocument ID: ${documentId}\nYou can now reference this document using: googledocs://${documentId}`,
+//           },
+//         ],
+//       };
+//     } catch (error) {
+//       console.error("Error creating document:", error);
+//       return {
+//         content: [
+//           {
+//             type: "text",
+//             text: `Error creating document: ${error}`,
+//           },
+//         ],
+//         isError: true,
+//       };
+//     }
+//   }
+// );
 
-// Tool to update an existing document
-server.tool(
-  "update-doc",
-  {
-    docId: z.string().describe("The ID of the document to update"),
-    content: z.string().describe("The content to add to the document"),
-    replaceAll: z.boolean().optional().describe("Whether to replace all content (true) or append (false)"),
-  },
-  async ({ docId, content, replaceAll = false }) => {
-    try {
-      // Ensure docId is a string and not null/undefined
-      if (!docId) {
-        throw new Error("Document ID is required");
-      }
+// // Tool to update an existing document
+// server.tool(
+//   "update-doc",
+//   {
+//     docId: z.string().describe("The ID of the document to update"),
+//     content: z.string().describe("The content to add to the document"),
+//     replaceAll: z.boolean().optional().describe("Whether to replace all content (true) or append (false)"),
+//   },
+//   async ({ docId, content, replaceAll = false }) => {
+//     try {
+//       // Ensure docId is a string and not null/undefined
+//       if (!docId) {
+//         throw new Error("Document ID is required");
+//       }
       
-      const documentId = docId.toString();
+//       const documentId = docId.toString();
       
-      if (replaceAll) {
-        // First, get the document to find its length
-        const doc = await docsClient.documents.get({
-          documentId,
-        });
+//       if (replaceAll) {
+//         // First, get the document to find its length
+//         const doc = await docsClient.documents.get({
+//           documentId,
+//         });
         
-        // Calculate the document length
-        let documentLength = 1; // Start at 1 (the first character position)
-        if (doc.data.body && doc.data.body.content) {
-          doc.data.body.content.forEach((element: any) => {
-            if (element.paragraph) {
-              element.paragraph.elements.forEach((paragraphElement: any) => {
-                if (paragraphElement.textRun && paragraphElement.textRun.content) {
-                  documentLength += paragraphElement.textRun.content.length;
-                }
-              });
-            }
-          });
-        }
+//         // Calculate the document length
+//         let documentLength = 1; // Start at 1 (the first character position)
+//         if (doc.data.body && doc.data.body.content) {
+//           doc.data.body.content.forEach((element: any) => {
+//             if (element.paragraph) {
+//               element.paragraph.elements.forEach((paragraphElement: any) => {
+//                 if (paragraphElement.textRun && paragraphElement.textRun.content) {
+//                   documentLength += paragraphElement.textRun.content.length;
+//                 }
+//               });
+//             }
+//           });
+//         }
         
-        // Delete all content and then insert new content
-        await docsClient.documents.batchUpdate({
-          documentId,
-          requestBody: {
-            requests: [
-              {
-                deleteContentRange: {
-                  range: {
-                    startIndex: 1,
-                    endIndex: documentLength,
-                  },
-                },
-              },
-              {
-                insertText: {
-                  location: {
-                    index: 1,
-                  },
-                  text: content,
-                },
-              },
-            ],
-          },
-        });
-      } else {
-        // Append content to the end of the document
-        const doc = await docsClient.documents.get({
-          documentId,
-        });
+//         // Delete all content and then insert new content
+//         await docsClient.documents.batchUpdate({
+//           documentId,
+//           requestBody: {
+//             requests: [
+//               {
+//                 deleteContentRange: {
+//                   range: {
+//                     startIndex: 1,
+//                     endIndex: documentLength,
+//                   },
+//                 },
+//               },
+//               {
+//                 insertText: {
+//                   location: {
+//                     index: 1,
+//                   },
+//                   text: content,
+//                 },
+//               },
+//             ],
+//           },
+//         });
+//       } else {
+//         // Append content to the end of the document
+//         const doc = await docsClient.documents.get({
+//           documentId,
+//         });
         
-        // Calculate the document length to append at the end
-        let documentLength = 1; // Start at 1 (the first character position)
-        if (doc.data.body && doc.data.body.content) {
-          doc.data.body.content.forEach((element: any) => {
-            if (element.paragraph) {
-              element.paragraph.elements.forEach((paragraphElement: any) => {
-                if (paragraphElement.textRun && paragraphElement.textRun.content) {
-                  documentLength += paragraphElement.textRun.content.length;
-                }
-              });
-            }
-          });
-        }
+//         // Calculate the document length to append at the end
+//         let documentLength = 1; // Start at 1 (the first character position)
+//         if (doc.data.body && doc.data.body.content) {
+//           doc.data.body.content.forEach((element: any) => {
+//             if (element.paragraph) {
+//               element.paragraph.elements.forEach((paragraphElement: any) => {
+//                 if (paragraphElement.textRun && paragraphElement.textRun.content) {
+//                   documentLength += paragraphElement.textRun.content.length;
+//                 }
+//               });
+//             }
+//           });
+//         }
         
-        // Append content at the end
-        await docsClient.documents.batchUpdate({
-          documentId,
-          requestBody: {
-            requests: [
-              {
-                insertText: {
-                  location: {
-                    index: documentLength,
-                  },
-                  text: content,
-                },
-              },
-            ],
-          },
-        });
-      }
+//         // Append content at the end
+//         await docsClient.documents.batchUpdate({
+//           documentId,
+//           requestBody: {
+//             requests: [
+//               {
+//                 insertText: {
+//                   location: {
+//                     index: documentLength,
+//                   },
+//                   text: content,
+//                 },
+//               },
+//             ],
+//           },
+//         });
+//       }
       
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Document updated successfully!\nDocument ID: ${docId}`,
-          },
-        ],
-      };
-    } catch (error) {
-      console.error("Error updating document:", error);
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error updating document: ${error}`,
-          },
-        ],
-        isError: true,
-      };
-    }
-  }
-);
+//       return {
+//         content: [
+//           {
+//             type: "text",
+//             text: `Document updated successfully!\nDocument ID: ${docId}`,
+//           },
+//         ],
+//       };
+//     } catch (error) {
+//       console.error("Error updating document:", error);
+//       return {
+//         content: [
+//           {
+//             type: "text",
+//             text: `Error updating document: ${error}`,
+//           },
+//         ],
+//         isError: true,
+//       };
+//     }
+//   }
+// );
 
 // Tool to search for documents
 server.tool(
@@ -464,45 +471,45 @@ server.tool(
   }
 );
 
-// Tool to delete a document
-server.tool(
-  "delete-doc",
-  {
-    docId: z.string().describe("The ID of the document to delete"),
-  },
-  async ({ docId }) => {
-    try {
-      // Get the document title first for confirmation
-      const doc = await docsClient.documents.get({ documentId: docId });
-      const title = doc.data.title;
+// // Tool to delete a document
+// server.tool(
+//   "delete-doc",
+//   {
+//     docId: z.string().describe("The ID of the document to delete"),
+//   },
+//   async ({ docId }) => {
+//     try {
+//       // Get the document title first for confirmation
+//       const doc = await docsClient.documents.get({ documentId: docId });
+//       const title = doc.data.title;
       
-      // Delete the document
-      await driveClient.files.delete({
-        fileId: docId,
-      });
+//       // Delete the document
+//       await driveClient.files.delete({
+//         fileId: docId,
+//       });
 
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Document "${title}" (ID: ${docId}) has been successfully deleted.`,
-          },
-        ],
-      };
-    } catch (error) {
-      console.error(`Error deleting document ${docId}:`, error);
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error deleting document: ${error}`,
-          },
-        ],
-        isError: true,
-      };
-    }
-  }
-);
+//       return {
+//         content: [
+//           {
+//             type: "text",
+//             text: `Document "${title}" (ID: ${docId}) has been successfully deleted.`,
+//           },
+//         ],
+//       };
+//     } catch (error) {
+//       console.error(`Error deleting document ${docId}:`, error);
+//       return {
+//         content: [
+//           {
+//             type: "text",
+//             text: `Error deleting document: ${error}`,
+//           },
+//         ],
+//         isError: true,
+//       };
+//     }
+//   }
+// );
 
 // Tool to list all documents
 server.tool(
