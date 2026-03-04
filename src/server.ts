@@ -16,14 +16,10 @@ const SCOPES = [
   "https://www.googleapis.com/auth/drive.readonly" // Add read-only scope as a fallback
 ];
 
-// Resolve paths relative to the project root
-const PROJECT_ROOT = path.resolve(path.join(path.dirname(new URL(import.meta.url).pathname), '..'));
-
-// The token path is where we'll store the OAuth credentials
-const TOKEN_PATH = path.join(PROJECT_ROOT, "token.json");
-
-// The credentials path is where your OAuth client credentials are stored
-const CREDENTIALS_PATH = path.join(PROJECT_ROOT, "credentials.json");
+// Use global OAuth directory (~/.config/google-oauth/)
+const OAUTH_DIR = path.join(process.env.HOME || "", ".config", "google-oauth");
+const TOKEN_PATH = path.join(OAUTH_DIR, "token.json");
+const CREDENTIALS_PATH = path.join(OAUTH_DIR, "credentials.json");
 
 // Create an MCP server instance
 const server = new McpServer({
@@ -54,7 +50,33 @@ async function authorize() {
     if (fs.existsSync(TOKEN_PATH)) {
       console.error("Found existing token, attempting to use it...");
       const token = JSON.parse(fs.readFileSync(TOKEN_PATH, "utf-8"));
-      oAuth2Client.setCredentials(token);
+      // Map Python token format ("token" key) to Node.js ("access_token" key)
+      const credentials: any = {
+        access_token: token.access_token || token.token,
+        refresh_token: token.refresh_token,
+        token_type: token.token_type || "Bearer",
+        expiry_date: token.expiry_date,
+      };
+      oAuth2Client.setCredentials(credentials);
+
+      // Listen for token refresh events and persist back to disk
+      oAuth2Client.on("tokens", (newTokens) => {
+        console.error("Token refreshed, persisting to disk...");
+        if (newTokens.access_token) {
+          token.token = newTokens.access_token;
+          if ("access_token" in token) {
+            token.access_token = newTokens.access_token;
+          }
+        }
+        if (newTokens.refresh_token) {
+          token.refresh_token = newTokens.refresh_token;
+        }
+        if (newTokens.expiry_date) {
+          token.expiry_date = newTokens.expiry_date;
+        }
+        fs.writeFileSync(TOKEN_PATH, JSON.stringify(token, null, 2));
+      });
+
       return oAuth2Client;
     }
     
