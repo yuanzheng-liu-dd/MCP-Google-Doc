@@ -1,3 +1,5 @@
+# Not Actively Maintained
+
 # Google Docs MCP Server
 
 This is a Model Context Protocol (MCP) server that allows you to connect to Google Docs through Claude. With this server, you can:
